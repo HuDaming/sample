@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use App\Notifications\ResetPassword;
+use Auth;
 
 class User extends Authenticatable
 {
@@ -55,7 +56,64 @@ class User extends Authenticatable
 
     public function feed()
     {
-        return $this->statuses()
-                    ->orderBy('created_at', 'desc');
+        $userIds = Auth::user()->followings->pluck('id')->toArray();
+        array_push($userIds, Auth::user()->id);
+
+        return Status::whereIn('user_id', $userIds)
+                                ->with('user')
+                                ->orderBy('created_at', 'desc');
+    }
+
+    /**
+     * 粉丝
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
+     */
+    public function followers()
+    {
+        return $this->belongsToMany(User::class, 'followers', 'user_id', 'follower_id');
+    }
+
+    /**
+     * 关注的人
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
+     */
+    public function followings()
+    {
+        return $this->belongsToMany(User::class, 'followers', 'follower_id', 'user_id');
+    }
+
+    /**
+     * 添加到关注
+     *
+     * @param $userIds
+     */
+    public function follow($userIds)
+    {
+        if (!is_array($userIds)) {
+            $userIds = compact('userIds');
+        }
+
+        $this->followings()->sync($userIds, false);
+    }
+
+    /**
+     * 取消关注
+     *
+     * @param $userIds
+     */
+    public function unFollow($userIds)
+    {
+        if (!is_array($userIds)) {
+            $userIds = compact('userIds');
+        }
+
+        $this->followings()->detach($userIds);
+    }
+
+    public function isFollowing($userId)
+    {
+        return $this->followings->contains($userId);
     }
 }
